@@ -6,7 +6,7 @@ class Test extends FunSuite {
  
    import us.penrose.md2revealjs.Util._
    
-  test("foobar"){
+  test("nonsequential"){
     // given
     val items = List("andrew", "simon", "alice")
     
@@ -14,9 +14,24 @@ class Test extends FunSuite {
     val groups = groupSequential(items)(_.head)
     
     // then
+    
     assert(groups == List(
-          "a" -> List("andrew"),
-          "s" -> List("simon"),
-          "a" -> List("alice")))
+          'a' -> List("andrew"),
+          's' -> List("simon"),
+          'a' -> List("alice")))
+  }
+   
+   test("sequential"){
+    // given
+    val items = List("andrew", "alice", "simon")
+    
+    // when
+    val groups = groupSequential(items)(_.head)
+    
+    // then
+    
+    assert(groups == List(
+          'a' -> List("andrew", "alice"),
+          's' -> List("simon")))
   }
 }
