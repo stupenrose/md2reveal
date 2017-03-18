@@ -1,12 +1,9 @@
 package us.penrose.md2revealjs
 
 import org.httpobjects.jetty.HttpObjectsJettyHandler
-import org.httpobjects.{HttpObject, Request}
-import org.httpobjects.DSL._
+import us.penrose.md2revealjs.CommonmarkUtil._
 import java.io.{File => FilesystemPath}
 import org.apache.commons.io.FileUtils
-import org.httpobjects.util.ClasspathResourceObject
-import org.httpobjects.util.MimeTypeTool
 import org.commonmark.ext.heading.anchor.HeadingAnchorExtension
 import java.util.Arrays
 import java.nio.charset.Charset
@@ -18,8 +15,144 @@ import org.commonmark.node.Visitor
 import org.commonmark.node.Paragraph
 import org.commonmark.node.BulletList
 import org.commonmark.node.Text
+import org.commonmark.node.ListItem
 
 object MarkdownToRevealJS extends App {
+  
+  def breakApartIfTooLarge(slide:Slide, threshold:Int):List[Slide] = {
+    
+    import us.penrose.md2revealjs.Util._
+   
+   
+    val max = threshold
+    
+    def textContent(n:Node) = n match {
+      case t:Text => t.getLiteral
+      case _ => ""
+    }
+    
+    case class Chunk(path:List[Node])
+    
+    def chunkIntoDivisibles(n:Node):List[Chunk] = {
+      flattenTree(List(), n)
+    }
+    
+    def firstPath(p:List[Node]):List[Node] = {
+      val n = p.last
+      val children = streamNodes(n).toList
+      if(children.size == 0){
+        p
+      }else{
+        firstPath(p :+ children(0))
+      }
+    }
+    def flattenTree(leadup:List[Node], node:Node):List[Chunk] = {
+      
+      val children = streamNodes(node).toList
+  		val nodeCopy = shallowCopy(node)
+      if(children.size==0) {
+    		println(node.getClass.getSimpleName + " is the end of the line")
+    		leadup.last.appendChild(nodeCopy)
+        List(Chunk(leadup :+ shallowCopy(node)))
+      }
+      else{
+    		children.flatMap{child=>
+      		println("Copying a " + nodeCopy.getClass.getSimpleName)
+      		val leadupCopy = if(leadup.isEmpty){
+      		  List()
+      		}else{
+      		  val leadupCopy = firstPath(List(deepCopy(leadup.head)))
+      		  leadupCopy.last.appendChild(nodeCopy)
+      		  leadupCopy
+      		}
+      		
+    		  flattenTree(leadupCopy :+ nodeCopy, child)
+    		}
+        
+//        
+//        
+//    	  val hasNestedList = children.lastOption match {
+//      	  case Some(ul:BulletList) => true
+//      	  case _ => false
+//    	  }
+//    	  
+//    	  println("unpack: " + node.getClass.getSimpleName + " (" + children.size + " children)")
+//    	  
+//    	  val divisibles = (node, hasNestedList) match {
+//    	  case (li:ListItem, true) => {
+//    		  val content = children.dropRight(1)
+//    				  println("  Nested list! with " + content.size + " runup")
+//    				  val nestedList = children.last
+//    				  
+//    				  val thisCopy = shallowCopy(node)
+//    				  content.map(deepCopy).foreach(thisCopy.appendChild(_))
+//    				  
+//    				  val subItems = streamNodes(nestedList).toList
+//    				  println("subitems : " + subItems.size)
+//    				  subItems.flatMap{child=>
+//    				  unpackNestedList(path.dropRight(1) :+ thisCopy :+ child)
+//    		  }
+//    	  }
+//    	  case _ => {
+//    		  children.flatMap{child=>
+//    		  unpackNestedList(path :+ child)
+//    		  }
+//    	  }
+//    	  }
+//    	  
+//    	  println(divisibles.size + " divisibles")
+//    	  divisibles
+      }
+    }
+    
+    val divisionPoints = slide.body.flatMap{n=> 
+      chunkIntoDivisibles(n)
+    }
+    
+    println(divisionPoints.size + " division points:")
+    divisionPoints.zipWithIndex.foreach{case (chunk, idx)=> println("   " + idx + CommonmarkUtil.toString(chunk.path.head, 0))}
+    
+    val groups = divisionPoints.grouped(max)
+    
+    
+    def doit(n:Node, divisibles:List[Chunk]):Node = {
+      n match {
+        case orig:BulletList => {
+          val copy = shallowCopy(orig)
+          
+          val tails = divisibles.map(_.path.tail)
+          val sections = groupSequential(tails)(_.headOption)
+          
+          sections.foreach{section=>
+            copy.appendChild(
+                doit(
+                    section._1.getOrElse(new Text("unknown")), 
+                    section._2.map(Chunk(_))
+                    )
+            )
+          }
+          copy
+        }
+        case n:Node => n
+      }
+         
+    }
+    
+    def unflatten(divisibles:List[Chunk]):List[Node] = {
+      val sections = groupSequential(divisibles)(_.path.head)
+      
+      val parts = sections.map{case (root, divisibles)=>
+          doit(root, divisibles)
+      }
+      parts.toList
+    }
+    
+    groups.toList.map{divisibles=>
+      Slide(slide.h, divisibles.map(_.path.head))
+    }
+  }
+  
+  
   import org.commonmark.parser.Parser
   
   val inputPath = new FilesystemPath(args(0))
@@ -27,7 +160,7 @@ object MarkdownToRevealJS extends App {
   
   val template = IOUtils.toString(getClass.getResourceAsStream("template.html"))
   
-  println("Reading " + inputPath)
+//  println("Reading " + inputPath)
   val markdown = FileUtils.readFileToString(inputPath, Charset.forName("ASCII"))
   
   val parser = Parser.builder().build();
@@ -43,20 +176,11 @@ object MarkdownToRevealJS extends App {
   }
   reduceHeadings(document)
   
-  def streamNodes(document:Node):Stream[Node] = {
-     
-    def next(n:Node):Stream[Node] = {
-      n match {
-        case null => Stream.Empty
-        case node => Stream.cons(node, next(n.getNext))
-      }
-    }
-    next(document.getFirstChild)
-  }
+  
   
   val nodes = streamNodes(document).toList
   
-  println(nodes.size + " nodes")
+//  println(nodes.size + " nodes")
   
   case class Slide(h:Heading, body:List[Node])
   
@@ -77,113 +201,12 @@ object MarkdownToRevealJS extends App {
     }
   }
   
-  def breakApartIfTooLarge(slide:Slide):List[Slide] = {
-    
-    val size = slide.body.foldLeft(0){(accum, slide) => accum + nestedNodeCount(slide)}
-    
-    
-    case class Chunk(path:List[Node])
-    
-    def textContent(n:Node) = n match {
-      case t:Text => t.getLiteral
-      case _ => ""
-    }
-    
-    def unpackNestedList(path:List[Node]):List[Chunk] = {
-      println(path.map({n=> n.getClass.getSimpleName + ":" + textContent(n)}).mkString("->"))
-      path.last match {
-          case ul:BulletList => {
-            val children = streamNodes(ul).toList
-            children.flatMap{child=>
-              unpackNestedList(path :+ child)
-            }
-          }
-          case n:Node => List(Chunk(path :+ n))
-      }
-    }
-    
-    val divisionPoints = slide.body.flatMap{n=> 
-      unpackNestedList(List(n))
-    }
-    
-    divisionPoints.foreach{pt=>
-      println("DIVISIBLE: " + pt.path.map({n=> n.getClass.getSimpleName + ":" + textContent(n)}).mkString("->"))
-    }
-    
-    
-   import us.penrose.md2revealjs.Util._
-   
-    // group divisions into groups of 'max' size
-    // collapse sister divisions
-    // create slides from the sets
-    
-    val max = 5
-    
-    val groups = divisionPoints.grouped(max)
-    
-    def shallowCopy(n:Node):Node = {
-      n match {
-        case orig:BulletList => {
-          val copy = new BulletList
-          copy.setBulletMarker(orig.getBulletMarker)
-          copy.setTight(orig.isTight())
-          copy
-        }
-      }
-    }
-    
-    def doit(n:Node, divisibles:List[Chunk]):Node = {
-      n match {
-        case orig:BulletList => {
-          val copy = shallowCopy(orig)
-          
-          val tails = divisibles.map(_.path.tail)
-          val sections = groupSequential(tails)(_.head)
-          
-          sections.foreach{section=>
-            copy.appendChild(doit(section._1, section._2.map(Chunk(_))))
-          }
-          copy
-        }
-        case n:Node => n
-      }
-         
-    }
-    
-    def unflatten(divisibles:List[Chunk]):List[Node] = {
-      val sections = groupSequential(divisibles)(_.path.head)
-      
-      val parts = sections.map{case (root, divisibles)=>
-        if(divisibles.length==1){
-          root
-        }else{
-          doit(root, divisibles)
-        }
-      }
-      parts.toList
-    }
-    
-    groups.toList.map{divisibles=>
-      val parts = unflatten(divisibles)
-      
-      Slide(slide.h, parts)
-    }
-  }
   
   
   
-  val expandedSlides = slides.flatMap(breakApartIfTooLarge)
+  val expandedSlides = slides.flatMap(breakApartIfTooLarge(_, 5))
   
-  /*
-   * TODO: Break things apart when they are too large
-   */
   
-  def print(n:Node, level:Int) {
-    val indent = (for(n <- 0 to level) yield " ").mkString
-    println(indent + n)
-    
-    streamNodes(n).foreach(print(_, level+1))
-  }
   
   def nestedNodeCount(n:Node):Int = {
     streamNodes(n).foldLeft(0){(accum, child)=>
@@ -258,7 +281,7 @@ object MarkdownToRevealJS extends App {
   }
   
   val slidesHtml = expandedSlides.zipWithIndex.map({case (slide, idx)=>
-    println("HEADER:" + toHtml(slide.h))
+//    println("HEADER:" + toHtml(slide.h))
     val bodyHtml = slide.body.map(toSpecialHtml).mkString("\n")
     
     val id = streamNodes(slide.h).map(toHtml).mkString.filter(_.isLetter) + idx
@@ -271,7 +294,7 @@ object MarkdownToRevealJS extends App {
   }).mkString
   
   val outlineSlideHtml = outline.map({name=>
-    println("OUTLINE: " + name)
+//    println("OUTLINE: " + name)
      s"""<li>$name</li>"""
   }).mkString("<section><h1>Outline</h1><ul>", "\n", "</ul></section>")
   
@@ -280,7 +303,7 @@ object MarkdownToRevealJS extends App {
         .replaceAllLiterally("SLIDES_GO_HERE", outlineSlideHtml + slidesHtml)
         
   FileUtils.writeStringToFile(outputPath, html)
-  println("Wrote to " + outputPath)
+//  println("Wrote to " + outputPath)
   
   def fileExtension(name:String):Option[String] = {
     val idx = name.lastIndexOf('.')
