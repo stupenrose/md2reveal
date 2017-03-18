@@ -1,7 +1,10 @@
 package us.penrose.md2revealjs
 
 import org.scalatest.FunSuite
+import org.junit.runner.RunWith
+import org.scalatest.junit.JUnitRunner
 
+@RunWith(classOf[JUnitRunner])
 class Test extends FunSuite {
  
    import us.penrose.md2revealjs.Util._
