@@ -34,11 +34,29 @@ object CommonmarkUtil {
     }
     
     def deepCopy(n:Node):Node = {
-      val copy = shallowCopy(n)
-      streamNodes(n).foreach { child =>  
-        copy.appendChild(deepCopy(child))  
-      }
+      val (copy, refs) = deepCopy(n, Seq())
       copy
+    }
+    def deepCopy(n:Node, refs:Seq[Node]):(Node, Map[Node, Node]) = {
+      println("Deep Copy " + n.getClass.getSimpleName)
+      val copy = shallowCopy(n)
+      
+      
+      val refmap = scala.collection.mutable.Map[Node, Node]()
+      if(refs.contains(n)){
+        println("Found reference to " + n)
+        refmap.put(n, copy)
+      }
+    
+      streamNodes(n).foreach { child =>  
+        val (childCopy, childMap) = deepCopy(child, refs)
+        copy.appendChild(childCopy)  
+        
+        childMap.foreach{case (key, value)=>
+          refmap.put(key, value)
+        }
+      }
+      (copy, refmap.toMap)
     }
   
   def streamNodes(document:Node):Stream[Node] = {

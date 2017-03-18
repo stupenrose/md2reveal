@@ -159,4 +159,27 @@ class Test extends FunSuite {
           'a' -> List("andrew", "alice"),
           's' -> List("simon")))
   }
+   
+   test("deepCopy with refs"){
+    // given
+    val listItem = new ListItem()
+    val par = new Paragraph()
+    val text = new Text("world")
+    val node = compose(new BulletList(),
+                  compose(listItem, 
+                        compose(new Paragraph(), new Text("hello"))),
+                  compose(new ListItem(), 
+                        compose(par, text)));
+    
+    // when
+    val (copy, refmap) = CommonmarkUtil.deepCopy(node, List(node, listItem, par, text))
+    
+    // then
+    
+    assert(CommonmarkUtil.toString(copy) == CommonmarkUtil.toString(node))
+    assert(CommonmarkUtil.toString(listItem) == CommonmarkUtil.toString(refmap(listItem)))
+    assert(CommonmarkUtil.toString(par) == CommonmarkUtil.toString(refmap(par)))
+    assert(CommonmarkUtil.toString(text) == CommonmarkUtil.toString(refmap(text)))
+    assert(CommonmarkUtil.toString(node) == CommonmarkUtil.toString(refmap(node)))
+  }
 }

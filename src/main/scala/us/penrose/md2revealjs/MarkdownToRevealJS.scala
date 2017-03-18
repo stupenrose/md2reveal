@@ -34,7 +34,7 @@ object MarkdownToRevealJS extends App {
     case class Chunk(path:List[Node])
     
     def chunkIntoDivisibles(n:Node):List[Chunk] = {
-      flattenTree(List(), n)
+      flattenTree(List(), None, n)
     }
     
     def firstPath(p:List[Node]):List[Node] = {
@@ -46,9 +46,21 @@ object MarkdownToRevealJS extends App {
         firstPath(p :+ children(0))
       }
     }
-    def flattenTree(leadup:List[Node], node:Node):List[Chunk] = {
+    def flattenTree(leadup:List[Node], insertionPointMaybe:Option[Node], node:Node):List[Chunk] = {
       
       val children = streamNodes(node).toList
+      println("\n\n##### FLATTEN TREE ###############")
+  		println("Copying a " + node.getClass.getSimpleName)
+  		println("Insertion point is " + insertionPointMaybe)
+  		leadup match {
+        case List() => println("Leadup is empty")
+        case _ => {
+          println("Leadup edge is a " + leadup.last.getClass.getSimpleName + " (" + leadup.last + ")")
+		      println("Leadup is:\n" + CommonmarkUtil.toString(leadup.head, 4))
+		      println("Edge is insertionPoint?? " + (leadup.last == insertionPointMaybe.get))
+        }
+      }
+		  
   		val nodeCopy = shallowCopy(node)
       if(children.size==0) {
     		println(node.getClass.getSimpleName + " is the end of the line")
@@ -57,51 +69,36 @@ object MarkdownToRevealJS extends App {
       }
       else{
     		children.flatMap{child=>
-      		println("Copying a " + nodeCopy.getClass.getSimpleName)
+    		  val leadingSiblings = children.slice(0, children.indexOf(child))
+    		  val leadingSimpleSiblings = leadingSiblings.filter{sibling=>
+    		    val n = streamNodes(sibling).toList
+    		    n.size == 1 && n.head.isInstanceOf[Text]
+    		  }
+    		  leadingSimpleSiblings.foreach{prefix=>
+    		    val prefixCopy = deepCopy(prefix)
+    		    println("Adding sibling:  a " + prefix.getClass.getSimpleName + " to a " + nodeCopy.getClass.getSimpleName)
+    		    nodeCopy.appendChild(prefixCopy)
+    		  }
       		val leadupCopy = if(leadup.isEmpty){
       		  List()
       		}else{
-      		  val leadupCopy = firstPath(List(deepCopy(leadup.head)))
-      		  leadupCopy.last.appendChild(nodeCopy)
+      		  
+      		  val (leadupCopyHead, copyMap) = deepCopy(leadup.head, insertionPointMaybe.toList)
+      		  println(copyMap + "  " + insertionPointMaybe.toList)
+      		  val insertionPointCopy = insertionPointMaybe match {
+      		    case Some(insertionPoint) => copyMap(insertionPoint)
+      		    case None => leadup.last
+      		  }
+      		  
+      		  val leadupCopy = firstPath(List(leadupCopyHead))
+      		  println("Leadup copy is:\n" + CommonmarkUtil.toString(leadupCopy.head, 4))
+    		    println("Adding a " + nodeCopy.getClass.getSimpleName + " to a " + insertionPointCopy.getClass.getSimpleName)
+      		  insertionPointCopy.appendChild(nodeCopy)
       		  leadupCopy
       		}
       		
-    		  flattenTree(leadupCopy :+ nodeCopy, child)
+    		  flattenTree(leadupCopy :+ nodeCopy, Some(nodeCopy), child)
     		}
-        
-//        
-//        
-//    	  val hasNestedList = children.lastOption match {
-//      	  case Some(ul:BulletList) => true
-//      	  case _ => false
-//    	  }
-//    	  
-//    	  println("unpack: " + node.getClass.getSimpleName + " (" + children.size + " children)")
-//    	  
-//    	  val divisibles = (node, hasNestedList) match {
-//    	  case (li:ListItem, true) => {
-//    		  val content = children.dropRight(1)
-//    				  println("  Nested list! with " + content.size + " runup")
-//    				  val nestedList = children.last
-//    				  
-//    				  val thisCopy = shallowCopy(node)
-//    				  content.map(deepCopy).foreach(thisCopy.appendChild(_))
-//    				  
-//    				  val subItems = streamNodes(nestedList).toList
-//    				  println("subitems : " + subItems.size)
-//    				  subItems.flatMap{child=>
-//    				  unpackNestedList(path.dropRight(1) :+ thisCopy :+ child)
-//    		  }
-//    	  }
-//    	  case _ => {
-//    		  children.flatMap{child=>
-//    		  unpackNestedList(path :+ child)
-//    		  }
-//    	  }
-//    	  }
-//    	  
-//    	  println(divisibles.size + " divisibles")
-//    	  divisibles
       }
     }
     
