@@ -33,7 +33,16 @@ object MarkdownToRevealJS extends App {
   val parser = Parser.builder().build();
   
   val document = parser.parse(markdown);
-    
+  
+  def reduceHeadings(n:Node){
+    n match {
+      case h:Heading => h.setLevel(h.getLevel+1)
+      case _ => 
+    }
+    streamNodes(n).foreach(reduceHeadings)
+  }
+  reduceHeadings(document)
+  
   def streamNodes(document:Node):Stream[Node] = {
      
     def next(n:Node):Stream[Node] = {
@@ -73,40 +82,91 @@ object MarkdownToRevealJS extends App {
     val size = slide.body.foldLeft(0){(accum, slide) => accum + nestedNodeCount(slide)}
     
     
+    case class Chunk(path:List[Node])
     
+    def textContent(n:Node) = n match {
+      case t:Text => t.getLiteral
+      case _ => ""
+    }
     
-    val max = 10
-    
-    if(size>max){
-      if(slide.body.size>1){
-        println("TOO LARGE " + size + textContent(slide.h) + " " + slide.body.size)
-        
-        val children = slide.body
-        val midPoint = children.size/2
-        val buckets = List(children.slice(0, midPoint), children.slice(midPoint, children.size))
-        buckets.flatMap{content=>
-          println(" subsize " + content.size + " midpoint " + midPoint)
-          val subSlide = Slide(slide.h, content)
-          breakApartIfTooLarge(subSlide)
-        }
-      }else{
-        slide.body.headOption match {
-          case Some(ul:BulletList) => {
+    def unpackNestedList(path:List[Node]):List[Chunk] = {
+      println(path.map({n=> n.getClass.getSimpleName + ":" + textContent(n)}).mkString("->"))
+      path.last match {
+          case ul:BulletList => {
             val children = streamNodes(ul).toList
-            val midPoint = children.size/2
-            val buckets = List(children.slice(0, midPoint), children.slice(midPoint, children.size))
-            buckets.map{bullets => 
-              val list = new BulletList()
-              bullets.foreach(list.appendChild(_))
-              Slide(slide.h, List(list))
+            children.flatMap{child=>
+              unpackNestedList(path :+ child)
             }
           }
-          case _ => List(slide)
+          case n:Node => List(Chunk(path :+ n))
+      }
+    }
+    
+    val divisionPoints = slide.body.flatMap{n=> 
+      unpackNestedList(List(n))
+    }
+    
+    divisionPoints.foreach{pt=>
+      println("DIVISIBLE: " + pt.path.map({n=> n.getClass.getSimpleName + ":" + textContent(n)}).mkString("->"))
+    }
+    
+    
+   import us.penrose.md2revealjs.Util._
+   
+    // group divisions into groups of 'max' size
+    // collapse sister divisions
+    // create slides from the sets
+    
+    val max = 5
+    
+    val groups = divisionPoints.grouped(max)
+    
+    def shallowCopy(n:Node):Node = {
+      n match {
+        case orig:BulletList => {
+          val copy = new BulletList
+          copy.setBulletMarker(orig.getBulletMarker)
+          copy.setTight(orig.isTight())
+          copy
         }
       }
+    }
+    
+    def doit(n:Node, divisibles:List[Chunk]):Node = {
+      n match {
+        case orig:BulletList => {
+          val copy = shallowCopy(orig)
+          
+          val tails = divisibles.map(_.path.tail)
+          val sections = groupSequential(tails)(_.head)
+          
+          sections.foreach{section=>
+            copy.appendChild(doit(section._1, section._2.map(Chunk(_))))
+          }
+          copy
+        }
+        case n:Node => n
+      }
+         
+    }
+    
+    def unflatten(divisibles:List[Chunk]):List[Node] = {
+      val sections = groupSequential(divisibles)(_.path.head)
       
-    }else {
-      List(slide)
+      val parts = sections.map{case (root, divisibles)=>
+        if(divisibles.length==1){
+          root
+        }else{
+          doit(root, divisibles)
+        }
+      }
+      parts.toList
+    }
+    
+    groups.toList.map{divisibles=>
+      val parts = unflatten(divisibles)
+      
+      Slide(slide.h, parts)
     }
   }
   
@@ -131,7 +191,7 @@ object MarkdownToRevealJS extends App {
     }
   }
   
-  def textContent(n:Node):String = {
+  def textSubContent(n:Node):String = {
     streamNodes(n).map({n=>
           n match {
             case t:Text => t.getLiteral
@@ -144,7 +204,7 @@ object MarkdownToRevealJS extends App {
     n match {
       case h:Heading => {
         
-        val text = textContent(h)
+        val text = textSubContent(h)
         
         h.getLevel match {
           case 1 => List(text)
@@ -197,11 +257,11 @@ object MarkdownToRevealJS extends App {
     case n:Node => toHtml(n)
   }
   
-  val slidesHtml = expandedSlides.map({slide=>
+  val slidesHtml = expandedSlides.zipWithIndex.map({case (slide, idx)=>
     println("HEADER:" + toHtml(slide.h))
     val bodyHtml = slide.body.map(toSpecialHtml).mkString("\n")
     
-    val id = streamNodes(slide.h).map(toHtml).mkString.filter(_.isLetter)
+    val id = streamNodes(slide.h).map(toHtml).mkString.filter(_.isLetter) + idx
     
     slideTemplate
       .replaceAllLiterally("ID_GOES_HERE", id)
