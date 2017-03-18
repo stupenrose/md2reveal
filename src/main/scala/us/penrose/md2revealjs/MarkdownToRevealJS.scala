@@ -31,7 +31,46 @@ object MarkdownToRevealJS extends App {
       case _ => ""
     }
     
-    case class Chunk(path:List[Node])
+    def depthOf(n:Node, tree:Node, depth:Int = 0):Option[Int] = {
+      
+      if(n == tree)  Some(depth + 1)
+      else{
+        val depths = streamNodes(tree).flatMap{child=>
+          depthOf(n, child, depth +1)
+        }
+        depths.headOption
+      }
+      
+    }
+    
+//    def nodesAtDepth(tree:Node, depth:Int):List[Node] = {
+//      
+//    }
+    def pruneToDepth(tree:Node, depth:Int) {
+      val children = streamNodes(tree).toList
+      if(depth==0){
+        children.foreach(_.unlink())
+      }else{
+        children.foreach{child=>
+          pruneToDepth(child, depth -1)
+        }
+      }
+    }
+    
+    case class Chunk(path:List[Node], item:Node, insertionPoint:Node){
+      def parentTree() = {
+        val (copy, map) = deepCopy(path.head, List(), filter={n=> n!=item})
+        copy
+      }
+      
+      def oneStepUp = {
+        val actualTree = path.head
+        val currentDepth = depthOf(insertionPoint, actualTree).get
+        val currentTree = parentTree
+        pruneToDepth(currentTree, currentDepth -1)
+        currentTree
+      }
+    }
     
     def chunkIntoDivisibles(n:Node):List[Chunk] = {
       flattenTree(List(), None, n)
@@ -46,6 +85,8 @@ object MarkdownToRevealJS extends App {
         firstPath(p :+ children(0))
       }
     }
+    
+    
     def flattenTree(leadup:List[Node], insertionPointMaybe:Option[Node], node:Node):List[Chunk] = {
       
       val children = streamNodes(node).toList
@@ -64,8 +105,9 @@ object MarkdownToRevealJS extends App {
   		val nodeCopy = shallowCopy(node)
       if(children.size==0) {
     		println(node.getClass.getSimpleName + " is the end of the line")
-    		leadup.last.appendChild(nodeCopy)
-        List(Chunk(leadup :+ shallowCopy(node)))
+    		val insertionPoint = leadup.last
+    		insertionPoint.appendChild(nodeCopy)
+        List(Chunk(leadup :+ nodeCopy, nodeCopy, insertionPoint))
       }
       else{
     		children.flatMap{child=>
@@ -111,41 +153,45 @@ object MarkdownToRevealJS extends App {
     
     val groups = divisionPoints.grouped(max)
     
-    
-    def doit(n:Node, divisibles:List[Chunk]):Node = {
-      n match {
-        case orig:BulletList => {
-          val copy = shallowCopy(orig)
-          
-          val tails = divisibles.map(_.path.tail)
-          val sections = groupSequential(tails)(_.headOption)
-          
-          sections.foreach{section=>
-            copy.appendChild(
-                doit(
-                    section._1.getOrElse(new Text("unknown")), 
-                    section._2.map(Chunk(_))
-                    )
-            )
-          }
-          copy
-        }
-        case n:Node => n
-      }
-         
+    def unflattenChunks(prev:Chunk, chunk:Chunk):List[Chunk] = {
+      val a = prev.parentTree
+      val b = chunk.parentTree
+      val aTxt = CommonmarkUtil.toString(a)
+      val bTxt = CommonmarkUtil.toString(b)
+      println(aTxt + "\nvs\n" + bTxt)
+       if(aTxt == bTxt){
+          println("spliced " + chunk.item + " into " + prev.insertionPoint)
+          prev.insertionPoint.appendChild(chunk.item)
+          List()
+       }else{
+         List(chunk)
+       }
     }
     
-    def unflatten(divisibles:List[Chunk]):List[Node] = {
-      val sections = groupSequential(divisibles)(_.path.head)
-      
-      val parts = sections.map{case (root, divisibles)=>
-          doit(root, divisibles)
+    def unflatten(divisibles:List[Chunk]):List[Chunk] = {
+      val collapsed = divisibles.foldLeft(List[Chunk]()){(accum, chunk)=>
+        accum.lastOption match {
+          case None => accum :+ chunk
+          case Some(prev) => {
+            // TODO: Keep doing this, walking up the tree, until we either splice or reach the root
+            accum ::: unflattenChunks(prev, chunk)
+          }
+        }
       }
-      parts.toList
+      collapsed
     }
     
     groups.toList.map{divisibles=>
-      Slide(slide.h, divisibles.map(_.path.head))
+      val initNum = divisibles.size
+      var n = divisibles
+      var x = 0;
+      do{
+        println("Iteration " + x)
+        x = x+1;
+        n = unflatten(divisibles)
+      }while(n.size!=initNum)
+      
+      Slide(slide.h, n.map(_.path.head))
     }
   }
   

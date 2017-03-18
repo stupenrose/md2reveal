@@ -37,7 +37,7 @@ object CommonmarkUtil {
       val (copy, refs) = deepCopy(n, Seq())
       copy
     }
-    def deepCopy(n:Node, refs:Seq[Node]):(Node, Map[Node, Node]) = {
+    def deepCopy(n:Node, refs:Seq[Node], filter:(Node)=>Boolean = {n=> true}):(Node, Map[Node, Node]) = {
       println("Deep Copy " + n.getClass.getSimpleName)
       val copy = shallowCopy(n)
       
@@ -48,7 +48,7 @@ object CommonmarkUtil {
         refmap.put(n, copy)
       }
     
-      streamNodes(n).foreach { child =>  
+      streamNodes(n).filter(filter).foreach { child =>  
         val (childCopy, childMap) = deepCopy(child, refs)
         copy.appendChild(childCopy)  
         
