@@ -1,0 +1,9 @@
+# maven
+/target
+
+# eclipse IDE
+/.settings
+/.classpath
+/.cache
+/.project
+/.cache-main
