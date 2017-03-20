@@ -69,4 +69,10 @@ object CommonmarkUtil {
     }
     next(document.getFirstChild)
   }
+  
+  
+  def compose(n:Node, children:Node*):Node = {
+    children.foreach(n.appendChild(_))
+    n
+  }
 }
