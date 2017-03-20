@@ -36,7 +36,7 @@ class SlideReducerTest extends FunSuite {
           |   - b
           |     - b1""".stripMargin.trim);
     
-    val slide = Slide(new Heading(), streamNodes(document).toList)
+    val slide = Slide(id="a", new Heading(), streamNodes(document).toList)
     
     println("SLIDE:\n" + toString(slide))
     // when
@@ -67,7 +67,7 @@ class SlideReducerTest extends FunSuite {
     val itemB = ListItem(new Text("b"))
     val ul = compose(new BulletList(), itemA, itemB)
         
-    val slide = Slide(new Heading(), List(
+    val slide = Slide(id="a", new Heading(), List(
         new Paragraph(),
         ul))
     
@@ -79,7 +79,7 @@ class SlideReducerTest extends FunSuite {
     
     val List(first, second, third) = slides
     
-    assert(first ==  Slide(slide.h, List(slide.body.head)))
+    assert(first ==  Slide(id="a", slide.h, List(slide.body.head)))
     assert(second.h ==  slide.h)
     assert(second.body(0).isInstanceOf[BulletList])
     second.body match {
@@ -100,7 +100,7 @@ class SlideReducerTest extends FunSuite {
   
   test("breaks apart top-level items"){
     // given
-    val slide = Slide(new Heading(), List(
+    val slide = Slide(id="a", new Heading(), List(
         new Paragraph(),
         new Paragraph()))
     
@@ -110,14 +110,14 @@ class SlideReducerTest extends FunSuite {
     // then
     assert(slides.size == 2)
     assert(slides == List(
-        Slide(slide.h, List(slide.body.head)),
-        Slide(slide.h, List(slide.body.last))
+        Slide(id="a", slide.h, List(slide.body.head)),
+        Slide(id="a2", slide.h, List(slide.body.last))
         ))
   }
   
   test("doesn't break apart slides that are not larger than the threshold"){
     // given
-    val slide = Slide(new Heading(), List(new Paragraph()))
+    val slide = Slide(id="a", new Heading(), List(new Paragraph()))
     
     // when
     val slides = breakApartIfTooLarge(slide, 1)

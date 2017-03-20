@@ -184,7 +184,7 @@ object SlideReducer {
         n = unflatten(divisibles)
       }while(n.size!=initNum)
       
-      Slide(slide.h, n.map(_.path.head))
+      Slide(slide.id, slide.h, n.map(_.path.head))
     }
   }
   

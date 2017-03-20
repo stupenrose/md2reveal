@@ -1,6 +1,8 @@
 package us.penrose.md2revealjs
 
 import org.commonmark.node._
+import java.util.Arrays
+import org.commonmark.ext.heading.anchor.HeadingAnchorExtension
 
 object CommonmarkUtil {
   
@@ -58,6 +60,24 @@ object CommonmarkUtil {
       }
       (copy, refmap.toMap)
     }
+  
+  def toHtml(n:Node):String = {
+    import org.commonmark.renderer.html.HtmlRenderer
+    val renderer = HtmlRenderer.builder()
+                    .extensions(Arrays.asList(HeadingAnchorExtension.create())).build();
+    
+    val html = renderer.render(n); 
+    html
+  }
+  
+  def textSubContent(n:Node):String = {
+    streamNodes(n).map({n=>
+          n match {
+            case t:Text => t.getLiteral
+            case n:Node => ""
+          }
+        }).mkString("")
+  }
   
   def streamNodes(document:Node):Stream[Node] = {
      
