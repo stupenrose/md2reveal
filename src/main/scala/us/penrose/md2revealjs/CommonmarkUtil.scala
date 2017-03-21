@@ -70,14 +70,13 @@ object CommonmarkUtil {
     html
   }
   
-  def textSubContent(n:Node):String = {
-    streamNodes(n).map({n=>
-          n match {
-            case t:Text => t.getLiteral
-            case n:Node => ""
-          }
-        }).mkString("")
+  def toText(n:Node):String = {
+    n match {
+      case t:Text => t.getLiteral
+      case n:Node => ""
+    }
   }
+  def textSubContent(n:Node):String = streamNodes(n).map(toText).mkString("")
   
   def streamNodes(document:Node):Stream[Node] = {
      

@@ -69,7 +69,7 @@ object MarkdownToRevealJS extends App {
       n match {
         case h:Heading => {
           slides :+ Slide(
-                        id = streamNodes(h).map(toHtml).mkString.filter(_.isLetter),
+                        id = streamNodes(h).map(toText).mkString.filter{char=> char.isLetter || char.isDigit || Set('-', '.', '_').contains(char)},
                         h = h, 
                         body = List())
         }
