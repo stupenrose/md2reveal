@@ -171,7 +171,7 @@ object MarkdownToRevealJS extends App {
     val outlineSlideHtml = outline.map({name=>
   //    println("OUTLINE: " + name)
        s"""<li>$name</li>"""
-    }).mkString("<section><h1>Outline</h1><ul>", "\n", "</ul></section>")
+    }).mkString("""<section id="Outline"><h1>Outline</h1><ul>""", "\n", "</ul></section>")
     
     val html = template
           .replaceAllLiterally("TITLE_GOES_HERE", title)
