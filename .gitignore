@@ -1,6 +1,10 @@
 # maven
 /target
 
+# intellij IDE
+*.iml
+.idea
+
 # eclipse IDE
 /.settings
 /.classpath
