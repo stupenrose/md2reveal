@@ -53,7 +53,7 @@
 				<configuration>
 					<archive>
 						<manifest>
-							<mainClass>us.penrose.md2revealjs.MarkdownServe</mainClass>
+							<mainClass>us.penrose.md2revealjs.MarkdownToRevealJS</mainClass>
 						</manifest>
 					</archive>
 				</configuration>
