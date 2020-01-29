@@ -1,7 +1,6 @@
 package us.penrose.md2revealjs
 
 import us.penrose.md2revealjs.CommonmarkUtil._
-import us.penrose.md2revealjs.Util._
 import java.io.{File => FilesystemPath}
 import org.apache.commons.io.FileUtils
 import org.commonmark.ext.heading.anchor.HeadingAnchorExtension
