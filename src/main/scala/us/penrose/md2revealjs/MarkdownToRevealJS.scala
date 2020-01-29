@@ -29,7 +29,6 @@ object MarkdownToRevealJS extends App {
   val inputPath = new FilesystemPath(args(0))
   val outputPath = new FilesystemPath(args(1))
   val title = params.get("title").flatten.getOrElse("A Presentation")
-  val headingLevel = params.get("slide-heading-level").flatten.map(_.toInt).getOrElse(1)
   
   var lastModified = 0L;
   do{
