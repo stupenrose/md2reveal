@@ -18,10 +18,19 @@ import org.commonmark.node.Text
 import org.commonmark.node.ListItem
 
 object MarkdownToRevealJS extends App {
-  
+
+  def params(): Map[String, Option[String]] ={
+    val Pattern = "(.*)=(.*)".r
+
+    args.toSeq.map{
+      case Pattern(name, value) => (name -> Some(value))
+      case arg => (arg -> None)
+    }.toMap
+  }
   val inputPath = new FilesystemPath(args(0))
   val outputPath = new FilesystemPath(args(1))
   val title = args(2)
+  val headingLevel = params.get("slide-heading-level").flatten.map(_.toInt).getOrElse(1)
   
   var lastModified = 0L;
   do{
@@ -51,7 +60,7 @@ object MarkdownToRevealJS extends App {
     
     def reduceHeadings(n:Node){
       n match {
-        case h:Heading => h.setLevel(h.getLevel+1)
+        case h:Heading => h.setLevel(h.getLevel + headingLevel)
         case _ => 
       }
       streamNodes(n).foreach(reduceHeadings)
